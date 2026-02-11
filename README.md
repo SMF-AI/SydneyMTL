@@ -2,6 +2,8 @@
 Repository for SydneyMTL: Interpretable Multi-Task Learning for Complete Sydney System Assessment in Gastric Biopsies
 
 ## 🧠 Overview
+![Graphical Abstract](docs/images/Figure 0. Graphical Abstract.png)
+
 ## 🔬 Key Idea
 ## 📊 Results
 
