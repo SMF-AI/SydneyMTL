@@ -1,0 +1,16 @@
+torch==2.3.0 -f https://download.pytorch.org/whl/cu121/torch_stable.html
+torchvision==0.18.0 -f https://download.pytorch.org/whl/cu121/torch_stable.html
+openslide-python==1.3.1
+opencv-python ==4.7.0.68
+numpy == 1.23.4
+seaborn == 0.13.2
+mlflow == 2.12.1
+protobuf == 5.28.3 # protobuf 5.29.0 version error로 인한 downgrade
+progress == 1.6
+shapely == 2.0.4
+tqdm
+scikit-image == 0.18.3
+omegaconf == 2.3.0
+transformers==4.45.2 # histai/hibou-b
+einops==0.8.0 # Nystrom attention
+h5py==3.13.0

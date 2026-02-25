@@ -2,7 +2,18 @@ import torch
 import torch.nn as nn
 from typing import Tuple, Literal, Union, Dict
 
-from seedp.networks.attention_ops import AttentionLayer
+
+class AttentionLayer(nn.Module):
+
+    def __init__(self, input_dim: int) -> None:
+        super(AttentionLayer, self).__init__()
+        self.input_dim = input_dim
+        self.linear = nn.Linear(input_dim, 1)
+
+    def forward(self, x):
+        alignment = self.linear(x)  # (*K, n, d) -> (*K, n, 1)
+        attention_weight = torch.softmax(alignment.squeeze(-1), dim=-1)  # (*K, N)
+        return attention_weight
 
 
 class AttentionFeatureMIL(nn.Module):
