@@ -2,10 +2,22 @@
 Repository for SydneyMTL: Interpretable Multi-Task Learning for Complete Sydney System Assessment in Gastric Biopsies
 
 ## 🧠 Overview
-![Graphical Abstract](docs/images/Figure 0. Graphical Abstract.png)
+<p align="center">
+  <img src="docs/images/Figure_0_Graphical_Abstract.png" width="40%">
+</p>
 
 ## 🔬 Key Idea
+- **Unified multi-task learning for the Updated Sydney System (USS)**: A single weakly supervised MIL framework predicts all five USS attributes simultaneously: H. pylori, Intestinal Metaplasia, Glandular Atrophy, Neutrophil Activity, and Mononuclear Cell Infiltration, following the 4-tier severity grading (0–3). Atrophy additionally includes an explicit N/A class to reflect real-world diagnostic workflow.
+- **Task-specific attention for interpretability**: The model uses shared slide representations with task-specific attention pooling and classification heads, enabling attribute-wise heatmaps that highlight regions contributing to each grading decision.
+- **Long-tail aware optimization via prior-based logit adjustment**: To address severe class imbalance (dominance of Absent/Mild cases), we incorporate empirical class priors directly into logits. This improves robustness on rare Moderate/Marked grades and maintains performance under balanced evaluation.
+- **Emergent ordinal structure in representation space**: Although trained with standard classification loss, the learned embeddings preserve biological ordinality—severity grades form a continuous trajectory in latent space.
+
 ## 📊 Results
+- **Large-scale validation**: Evaluated on 50,765 retrospective WSIs and a 366-case expert-consensus “Golden” dataset with balanced severity distribution.
+- **Robust performance under balanced evaluation**: While baseline methods degrade substantially on the Golden set, our model maintains high agreement (e.g., QWK up to 0.898 for IM and 0.826 for H. pylori).
+- **Clinically meaningful agreement with pathologists**: Across 24 pathologists, the model achieves strong concordance (mean QWK ≈ 0.73), reflecting real-world diagnostic consistency.
+- **AI-assisted reading improves consistency and efficiency**: In a randomized reader study, AI support increased inter-observer agreement and reduced reading time by ~34% per WSI.
+- **Pathologically plausible explanations**: Attention maps localize biologically meaningful structures (e.g., goblet cells for IM, neutrophil infiltration for activity), supporting clinical interpretability.
 
 ## 👨‍🔬 Authors
 

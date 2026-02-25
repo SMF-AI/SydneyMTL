@@ -4,35 +4,41 @@ from typing import Tuple, Literal, Union, Dict
 
 
 class AttentionLayer(nn.Module):
-
     def __init__(self, input_dim: int) -> None:
-        super(AttentionLayer, self).__init__()
-        self.input_dim = input_dim
+        super().__init__()
         self.linear = nn.Linear(input_dim, 1)
 
-    def forward(self, x):
-        alignment = self.linear(x)  # (*K, n, d) -> (*K, n, 1)
-        attention_weight = torch.softmax(alignment.squeeze(-1), dim=-1)  # (*K, N)
-        return attention_weight
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        alignment = self.linear(x)  # (..., N, 1)
+        attention_weights = torch.softmax(alignment.squeeze(-1), dim=-1)
+        return attention_weights
 
 
 class AttentionFeatureMIL(nn.Module):
-    """Feature로부터 forward하는 Attention MIL 모델"""
+    """
+    Attention-based MIL model operating on pre-extracted instance features.
+
+    Args:
+        encoder_dim (int): Input feature dimension.
+        adaptor_dim (int): Hidden dimension for adaptor layer.
+        num_classes (int): Number of output classes.
+    """
 
     def __init__(
-        self, encoder_dim: int, adaptor_dim: int, num_classes: int = 2, **kwargs
+        self,
+        encoder_dim: int,
+        adaptor_dim: int,
+        num_classes: int = 2,
     ):
-        super(AttentionFeatureMIL, self).__init__()
-        self.encoder_dim = encoder_dim
-        self.adaptor_dim = adaptor_dim
+        super().__init__()
         self.num_classes = num_classes
 
-        # Adding an adaptor layer
         self.adaptor = nn.Sequential(
             nn.Linear(encoder_dim, adaptor_dim),
             nn.ReLU(),
             nn.Linear(adaptor_dim, adaptor_dim),
         )
+
         self.attention_layer = AttentionLayer(adaptor_dim)
         self.classifier = nn.Linear(adaptor_dim, num_classes)
 
@@ -43,72 +49,58 @@ class AttentionFeatureMIL(nn.Module):
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Args:
-            x (torch.Tensor): (K, N, D)
-            return_with (str): default None.
-                - "attention_weights": attention weight for each instance
-                - "contributions": (미구현) attention_weight*W(linear)@instance_feature
+            x (Tensor): Shape (B, N, D).
+            return_with (str, optional):
+                - "attention_weights": return attention weights per instance.
+                - "contributions": not implemented.
 
         Returns:
-            logits (torch.Tensor): (K, n_classess) shaped tensor. logits for bag prediction
-            interpretable components (torch.Tensor): attention weight or contribution
-                shape (1, N). This return will be returned when return_with is not None.
-
-        Examples:
-
+            logits (Tensor): Shape (B, num_classes).
+            Optional attention weights (Tensor): Shape (B, N).
         """
 
-        B, N, D = x.shape
+        B, N, _ = x.shape
 
-        instance_features = self.adaptor(x)  # (B, n, d')
+        instance_features = self.adaptor(x)
         attention_weights = self.attention_layer(instance_features).view(B, N)
+
         weighted_features = torch.einsum(
             "ijk,ij->ijk", instance_features, attention_weights
         )
+        context_vector = weighted_features.sum(dim=1)
 
-        context_vector = weighted_features.sum(axis=1)  # (B, d')
-        logits = self.classifier(context_vector).view(B, self.num_classes)
+        logits = self.classifier(context_vector)
 
         if return_with == "attention_weights":
             return logits, attention_weights
+
         if return_with == "contributions":
-            raise NotImplementedError(
-                'return_with="contributions" 는 아직 지원하지 않습니다.'
-            )
+            raise NotImplementedError('"contributions" option is not implemented yet.')
 
         return logits
 
 
 class MultiTaskAttentionFeatureMIL(nn.Module):
     """
-    Multi-Task Attention Feature MIL
+    Multi-task Attention-based MIL model.
 
     Args:
-        encoder_dim (int): Input feature dimension
-        adaptor_dim (int): Adaptor dimension
-        task_classes (Dict[str, int]): Task classes
+        encoder_dim (int): Input feature dimension.
+        adaptor_dim (int): Hidden dimension for adaptor layer.
+        task_classes (Dict[str, int]): Dictionary mapping task names to number of classes.
 
     Returns:
-        Dict[str, torch.Tensor]: Task-specific logits
-
-    Examples:
-        >>> model = MultiTaskAttentionFeatureMIL(
-            encoder_dim=1024,
-            adaptor_dim=512,
-            task_classes={"task1": 3, "task2": 3}
-        )
-        >>> logits = model(torch.rand(1, 7, 1024))
-        >>> print(logits["task1"].shape)
-        torch.Size([1, 3])
-        >>> print(logits["task2"].shape)
-        torch.Size([1, 3])
+        Dict[str, Tensor]: Task-specific logits.
+        Optionally, attention weights per task.
     """
 
     def __init__(
-        self, encoder_dim: int, adaptor_dim: int, task_classes: Dict[str, int], **kwargs
+        self,
+        encoder_dim: int,
+        adaptor_dim: int,
+        task_classes: Dict[str, int],
     ):
         super().__init__()
-        self.encoder_dim = encoder_dim
-        self.adaptor_dim = adaptor_dim
         self.task_classes = task_classes
 
         self.adaptor = nn.Sequential(
@@ -116,36 +108,60 @@ class MultiTaskAttentionFeatureMIL(nn.Module):
             nn.GELU(),
             nn.Linear(adaptor_dim, adaptor_dim),
         )
+
         self.attention_layers = nn.ModuleDict(
-            {task: AttentionLayer(adaptor_dim) for task, _ in task_classes.items()}
+            {task: AttentionLayer(adaptor_dim) for task in task_classes}
         )
+
         self.classifiers = nn.ModuleDict(
-            {t: nn.Linear(adaptor_dim, c) for t, c in task_classes.items()}
+            {
+                task: nn.Linear(adaptor_dim, num_classes)
+                for task, num_classes in task_classes.items()
+            }
         )
 
     def forward(
         self,
         x: torch.Tensor,
         return_with: str = "attention_weights",
-    ) -> Dict[str, torch.Tensor]:
+    ) -> Union[
+        Dict[str, torch.Tensor],
+        Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]],
+    ]:
+        """
+        Args:
+            x (Tensor): Shape (B, N, D).
+            return_with (str):
+                - "attention_weights": return attention weights per task.
 
-        B, N, D = x.shape
-        res = dict()
-        res_attn = dict()
-        instance_features = self.adaptor(x)  # (B, N, adaptor_dim)
+        Returns:
+            Dict[str, Tensor]: Task-specific logits.
+            Optional Dict[str, Tensor]: Task-specific attention weights.
+        """
+
+        B, _, _ = x.shape
+
+        instance_features = self.adaptor(x)
+
+        logits_dict: Dict[str, torch.Tensor] = {}
+        attn_dict: Dict[str, torch.Tensor] = {}
+
         for task, attn_layer in self.attention_layers.items():
-            attention_weights = attn_layer(instance_features)  # (B, D)
+            attention_weights = attn_layer(instance_features)
+
             weighted_features = torch.einsum(
                 "ij,ijk->ijk", attention_weights, instance_features
             )
-            context_vector = weighted_features.sum(axis=1)  # (B, D')
-            logits = self.classifiers[task](context_vector)  # (B, n_cls)
 
-            res[task] = logits
+            context_vector = weighted_features.sum(dim=1)
+            logits = self.classifiers[task](context_vector)
+
+            logits_dict[task] = logits
+
             if return_with == "attention_weights":
-                res_attn[task] = attention_weights
+                attn_dict[task] = attention_weights
 
         if return_with == "attention_weights":
-            return res, res_attn
+            return logits_dict, attn_dict
 
-        return res
+        return logits_dict
