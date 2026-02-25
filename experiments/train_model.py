@@ -80,9 +80,9 @@ def get_args() -> argparse.Namespace:
 
 
 def get_golden_set_dataset(args: argparse.Namespace) -> SydneyDataset:
-    base_path = "/vast/AI_team/dataset/SMF/feature/stomach/aperio_gt_450/sydney_paper/ground_truth"
+    base_path = "../data/ground_truth"
     csv_path = os.path.join(base_path, "sydney_golden_set.csv")
-    data_dir = os.path.join(base_path, "feature/hibouL")
+    data_dir = os.path.join(base_path, "feature_hibouL")
 
     golden_batch = SydneyBatch.from_csv(
         feature_dir=data_dir,
